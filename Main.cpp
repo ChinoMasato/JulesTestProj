@@ -30,15 +30,15 @@ void Main()
 	double currentJumpSustainTime = 0.0; // How long jump has been sustained
 
 	// Level Definition
-	s3d::Array<s3d::RectF> levelObjects;
+	s3d::Array<s3d::Rect> levelObjects; // Changed from RectF
 	// Platform 1
-	levelObjects.push_back(s3d::RectF{ 200, GROUND_Y - 100, 200, 20 }); // x, y, width, height
+	levelObjects.push_back(s3d::Rect{ 200, GROUND_Y - 100, 200, 20 }); // Changed from RectF
 	// Platform 2
-	levelObjects.push_back(s3d::RectF{ 500, GROUND_Y - 180, 150, 20 });
+	levelObjects.push_back(s3d::Rect{ 500, GROUND_Y - 180, 150, 20 }); // Changed from RectF
 	// A small wall on top of platform 1
-	levelObjects.push_back(s3d::RectF{ 300, GROUND_Y - 100 - 50, 20, 50 }); // Sits on platform 1
+	levelObjects.push_back(s3d::Rect{ 300, GROUND_Y - 100 - 50, 20, 50 }); // Changed from RectF
 	// Floating Platform
-	levelObjects.push_back(s3d::RectF{ 800, GROUND_Y - 120, 100, 20 });
+	levelObjects.push_back(s3d::Rect{ 800, GROUND_Y - 120, 100, 20 }); // Changed from RectF
 
 	while (s3d::System::Update())
 	{
@@ -93,7 +93,7 @@ void Main()
 		// Determine if player is on ground (for jump initiation)
 		// This check is based on player's current position and if their vertical velocity is near zero (implies landed)
 		bool isOnGround = false;
-		if (s3d::NearlyEquals(playerVelocity.y, 0.0, 0.1) ) // If y-velocity is practically zero
+		if (s3d::Math::NearlyEquals(playerVelocity.y, 0.0, 0.1) ) // If y-velocity is practically zero
 		{
 			// Check against main ground with a small tolerance
 			if (playerPosition.y >= GROUND_Y - 30.0 - 1.0) {
@@ -158,15 +158,15 @@ void Main()
 		s3d::Circle playerCollisionCircle{ playerPosition, 30 };
 		s3d::Vec2 previousPlayerPositionForCollision = playerPosition - playerVelocity * deltaTime; // Position before this frame's physics update
 
-		for (const auto& platform : levelObjects)
+		for (const auto& platform : levelObjects) // platform is now s3d::Rect
 		{
-			if (playerCollisionCircle.intersects(platform))
+			if (playerCollisionCircle.intersects(platform)) // Circle intersects Rect (double) is fine
 			{
 				s3d::Circle previousFrameCircle{ previousPlayerPositionForCollision, 30 };
-				s3d::LineF platformTopEdge{ platform.tl(), platform.tr() };
-				s3d::LineF platformBottomEdge{ platform.bl(), platform.br() };
-				s3d::LineF platformLeftEdge{ platform.tl(), platform.bl() };
-				s3d::LineF platformRightEdge{ platform.tr(), platform.br() };
+				s3d::Line platformTopEdge{ platform.tl(), platform.tr() };       // Changed from LineF
+				s3d::Line platformBottomEdge{ platform.bl(), platform.br() };   // Changed from LineF
+				s3d::Line platformLeftEdge{ platform.tl(), platform.bl() };     // Changed from LineF
+				s3d::Line platformRightEdge{ platform.tr(), platform.br() };    // Changed from LineF
 
 				// Check vertical collision (landing on top or hitting bottom)
 				if (playerVelocity.y > 0 && !previousFrameCircle.intersects(platformTopEdge) && playerCollisionCircle.intersects(platformTopEdge)) // Moving down & was above
@@ -234,15 +234,15 @@ void Main()
 			// Draw Level Objects
 			for (const auto& obj : levelObjects)
 			{
-				obj.draw(s3d::Palette::ForestGreen); // Example color
+				obj.draw(s3d::Palette::Green); // Example color
 			}
 
 			// Draw Player (with animation placeholder)
 			s3d::ColorF playerColor = s3d::Palette::Orange;
 			// Re-evaluate finalIsOnGround based on current, possibly corrected, position and velocity
-			bool finalIsOnGround = (s3d::NearlyEquals(playerVelocity.y, 0.0, 0.1) &&
+			bool finalIsOnGround = (s3d::Math::NearlyEquals(playerVelocity.y, 0.0, 0.1) &&
 									(playerPosition.y >= GROUND_Y - 30.0 - 1.0));
-			if (!finalIsOnGround && s3d::NearlyEquals(playerVelocity.y, 0.0, 0.1)) {
+			if (!finalIsOnGround && s3d::Math::NearlyEquals(playerVelocity.y, 0.0, 0.1)) {
 				s3d::Circle feetCircle{ playerPosition.movedBy(0, 1), 28 };
 				for (const auto& platform : levelObjects) {
 					if (feetCircle.intersects(platform) && playerPosition.y < platform.top() +1) {
