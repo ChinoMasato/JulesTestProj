@@ -16,7 +16,7 @@ void Main()
 	s3d::Scene::SetBackground(s3d::ColorF{ 0.6, 0.8, 0.7 });
 
 	// Player and Camera state
-	s3d::Vec2 playerPosition{ 400, GROUND_Y - 200 }; // Start above ground
+	s3d::Vec2 playerPosition{ 100, GROUND_Y - 30.0 }; // Start on main ground line
 	s3d::Vec2 playerVelocity{ 0.0, 0.0 };
 	s3d::Camera2D camera{ s3d::Vec2{ s3d::Scene::CenterF() }, 1.0 }; // Centered camera initial
 
@@ -28,6 +28,17 @@ void Main()
 	// Jump mechanic state
 	bool isJumpingForKeyHold = false; // True if jump key is held, allowing sustain
 	double currentJumpSustainTime = 0.0; // How long jump has been sustained
+
+	// Level Definition
+	s3d::Array<s3d::RectF> levelObjects;
+	// Platform 1
+	levelObjects.push_back(s3d::RectF{ 200, GROUND_Y - 100, 200, 20 }); // x, y, width, height
+	// Platform 2
+	levelObjects.push_back(s3d::RectF{ 500, GROUND_Y - 180, 150, 20 });
+	// A small wall on top of platform 1
+	levelObjects.push_back(s3d::RectF{ 300, GROUND_Y - 100 - 50, 20, 50 }); // Sits on platform 1
+	// Floating Platform
+	levelObjects.push_back(s3d::RectF{ 800, GROUND_Y - 120, 100, 20 });
 
 	while (s3d::System::Update())
 	{
@@ -78,10 +89,30 @@ void Main()
 		{
 			playerVelocity.x = actualMoveSpeed;
 		}
-		playerPosition.x += playerVelocity.x * deltaTime;
 
-		// Vertical movement logic (Jump and Gravity)
-		bool isOnGround = (playerPosition.y >= GROUND_Y - 30.0); // Check based on current position for jump initiation
+		// Determine if player is on ground (for jump initiation)
+		// This check is based on player's current position and if their vertical velocity is near zero (implies landed)
+		bool isOnGround = false;
+		if (s3d::Math::Approximately(playerVelocity.y, 0.0, 0.1) ) // If y-velocity is practically zero
+		{
+			// Check against main ground with a small tolerance
+			if (playerPosition.y >= GROUND_Y - 30.0 - 1.0) {
+				isOnGround = true;
+			}
+			// Check against platforms if not on main ground
+			if(!isOnGround) {
+				s3d::Circle feetCircle{ playerPosition.movedBy(0, 1), 28 }; // Check slightly below current pos
+				for (const auto& platform : levelObjects)
+				{
+					if (feetCircle.intersects(platform) && playerPosition.y < platform.top() + 1) // Player slightly above or on platform top
+					{
+						isOnGround = true;
+						break;
+					}
+				}
+			}
+		}
+
 
 		// Jump initiation
 		if (s3d::KeyW.down() && isOnGround)
@@ -115,10 +146,68 @@ void Main()
 		}
 		playerVelocity.y += effectiveGravity * deltaTime;
 
-		// Update Vertical Position
+		// Update positions based on velocity
+		playerPosition.x += playerVelocity.x * deltaTime;
 		playerPosition.y += playerVelocity.y * deltaTime;
 
-		// Ground Collision
+
+		// Platform Collision Detection and Response
+		// Strategy: Check current player circle against each platform.
+		// To determine entry and side of collision, compare with player's position *before* this frame's movement.
+		// Resolve by pushing player out and zeroing velocity on the collision axis.
+		s3d::Circle playerCollisionCircle{ playerPosition, 30 };
+		s3d::Vec2 previousPlayerPositionForCollision = playerPosition - playerVelocity * deltaTime; // Position before this frame's physics update
+
+		for (const auto& platform : levelObjects)
+		{
+			if (playerCollisionCircle.intersects(platform))
+			{
+				s3d::Circle previousFrameCircle{ previousPlayerPositionForCollision, 30 };
+
+				// Check vertical collision (landing on top or hitting bottom)
+				if (playerVelocity.y > 0 && !previousFrameCircle.intersects(platform.topLine()) && playerCollisionCircle.intersects(platform.topLine(1.0))) // Moving down & was above
+				{
+					if (playerCollisionCircle.right().x > platform.left().x && playerCollisionCircle.left().x < platform.right().x) // Horizontal overlap
+					{
+						playerPosition.y = platform.top().y - 30;
+						playerVelocity.y = 0;
+					}
+				}
+				else if (playerVelocity.y < 0 && !previousFrameCircle.intersects(platform.bottomLine()) && playerCollisionCircle.intersects(platform.bottomLine(1.0))) // Moving up & was below
+				{
+					if (playerCollisionCircle.right().x > platform.left().x && playerCollisionCircle.left().x < platform.right().x) // Horizontal overlap
+					{
+						playerPosition.y = platform.bottom().y + 30;
+						playerVelocity.y = 0;
+					}
+				}
+				// Update collision circle for horizontal check after potential vertical correction
+				playerCollisionCircle.setPos(playerPosition);
+
+				// Check horizontal collision (hitting sides)
+				// Important: only resolve horizontal if not primarily a vertical collision solved above
+				// This simple check might still allow some corner clipping / incorrect resolution priority
+				if (playerVelocity.x > 0 && !previousFrameCircle.intersects(platform.leftLine()) && playerCollisionCircle.intersects(platform.leftLine(1.0))) // Moving right & was to the left
+				{
+					if (playerCollisionCircle.bottom().y > platform.top().y && playerCollisionCircle.top().y < platform.bottom().y) // Vertical overlap
+					{
+						playerPosition.x = platform.left().x - 30;
+						playerVelocity.x = 0;
+					}
+				}
+				else if (playerVelocity.x < 0 && !previousFrameCircle.intersects(platform.rightLine()) && playerCollisionCircle.intersects(platform.rightLine(1.0))) // Moving left & was to the right
+				{
+					if (playerCollisionCircle.bottom().y > platform.top().y && playerCollisionCircle.top().y < platform.bottom().y) // Vertical overlap
+					{
+						playerPosition.x = platform.right().x + 30;
+						playerVelocity.x = 0;
+					}
+				}
+				playerCollisionCircle.setPos(playerPosition); // Update for next platform check
+			}
+		}
+
+		// Main Ground Collision (Fallback)
 		if (playerPosition.y >= GROUND_Y - 30.0)
 		{
 			playerPosition.y = GROUND_Y - 30.0;
@@ -136,9 +225,27 @@ void Main()
 			// Draw Ground (extended)
 			s3d::Line(-10000, GROUND_Y, 10000, GROUND_Y).draw(2, s3d::Palette::Gray);
 
+			// Draw Level Objects
+			for (const auto& obj : levelObjects)
+			{
+				obj.draw(s3d::Palette::DarkGreen); // Example color
+			}
+
 			// Draw Player (with animation placeholder)
 			s3d::ColorF playerColor = s3d::Palette::Orange;
-			bool finalIsOnGround = (playerPosition.y >= GROUND_Y - 30.0); // Re-evaluate for current frame state
+			// Re-evaluate finalIsOnGround based on current, possibly corrected, position and velocity
+			bool finalIsOnGround = (s3d::Math::Approximately(playerVelocity.y, 0.0, 0.1) &&
+									(playerPosition.y >= GROUND_Y - 30.0 - 1.0));
+			if (!finalIsOnGround && s3d::Math::Approximately(playerVelocity.y, 0.0, 0.1)) {
+				s3d::Circle feetCircle{ playerPosition.movedBy(0, 1), 28 };
+				for (const auto& platform : levelObjects) {
+					if (feetCircle.intersects(platform) && playerPosition.y < platform.top() +1) {
+						finalIsOnGround = true;
+						break;
+					}
+				}
+			}
+
 			if (isDashing)
 			{
 				playerColor = s3d::Palette::Yellow;
