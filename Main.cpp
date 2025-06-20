@@ -93,7 +93,7 @@ void Main()
 		// Determine if player is on ground (for jump initiation)
 		// This check is based on player's current position and if their vertical velocity is near zero (implies landed)
 		bool isOnGround = false;
-		if (s3d::Math::Approximately(playerVelocity.y, 0.0, 0.1) ) // If y-velocity is practically zero
+		if (s3d::NearlyEquals(playerVelocity.y, 0.0, 0.1) ) // If y-velocity is practically zero
 		{
 			// Check against main ground with a small tolerance
 			if (playerPosition.y >= GROUND_Y - 30.0 - 1.0) {
@@ -163,9 +163,13 @@ void Main()
 			if (playerCollisionCircle.intersects(platform))
 			{
 				s3d::Circle previousFrameCircle{ previousPlayerPositionForCollision, 30 };
+				s3d::LineF platformTopEdge{ platform.tl(), platform.tr() };
+				s3d::LineF platformBottomEdge{ platform.bl(), platform.br() };
+				s3d::LineF platformLeftEdge{ platform.tl(), platform.bl() };
+				s3d::LineF platformRightEdge{ platform.tr(), platform.br() };
 
 				// Check vertical collision (landing on top or hitting bottom)
-				if (playerVelocity.y > 0 && !previousFrameCircle.intersects(platform.topLine()) && playerCollisionCircle.intersects(platform.topLine(1.0))) // Moving down & was above
+				if (playerVelocity.y > 0 && !previousFrameCircle.intersects(platformTopEdge) && playerCollisionCircle.intersects(platformTopEdge)) // Moving down & was above
 				{
 					if (playerCollisionCircle.right().x > platform.left().x && playerCollisionCircle.left().x < platform.right().x) // Horizontal overlap
 					{
@@ -173,7 +177,7 @@ void Main()
 						playerVelocity.y = 0;
 					}
 				}
-				else if (playerVelocity.y < 0 && !previousFrameCircle.intersects(platform.bottomLine()) && playerCollisionCircle.intersects(platform.bottomLine(1.0))) // Moving up & was below
+				else if (playerVelocity.y < 0 && !previousFrameCircle.intersects(platformBottomEdge) && playerCollisionCircle.intersects(platformBottomEdge)) // Moving up & was below
 				{
 					if (playerCollisionCircle.right().x > platform.left().x && playerCollisionCircle.left().x < platform.right().x) // Horizontal overlap
 					{
@@ -185,9 +189,11 @@ void Main()
 				playerCollisionCircle.setPos(playerPosition);
 
 				// Check horizontal collision (hitting sides)
-				// Important: only resolve horizontal if not primarily a vertical collision solved above
-				// This simple check might still allow some corner clipping / incorrect resolution priority
-				if (playerVelocity.x > 0 && !previousFrameCircle.intersects(platform.leftLine()) && playerCollisionCircle.intersects(platform.leftLine(1.0))) // Moving right & was to the left
+				// Important: only resolve horizontal if not primarily a vertical collision solved above.
+				// This simple check might still allow some corner clipping / incorrect resolution priority.
+				// Also, ensure that the player wasn't already pushed by a vertical collision response this frame
+				// in a way that would make horizontal collision invalid.
+				if (playerVelocity.x > 0 && !previousFrameCircle.intersects(platformLeftEdge) && playerCollisionCircle.intersects(platformLeftEdge)) // Moving right & was to the left
 				{
 					if (playerCollisionCircle.bottom().y > platform.top().y && playerCollisionCircle.top().y < platform.bottom().y) // Vertical overlap
 					{
@@ -195,7 +201,7 @@ void Main()
 						playerVelocity.x = 0;
 					}
 				}
-				else if (playerVelocity.x < 0 && !previousFrameCircle.intersects(platform.rightLine()) && playerCollisionCircle.intersects(platform.rightLine(1.0))) // Moving left & was to the right
+				else if (playerVelocity.x < 0 && !previousFrameCircle.intersects(platformRightEdge) && playerCollisionCircle.intersects(platformRightEdge)) // Moving left & was to the right
 				{
 					if (playerCollisionCircle.bottom().y > platform.top().y && playerCollisionCircle.top().y < platform.bottom().y) // Vertical overlap
 					{
@@ -228,15 +234,15 @@ void Main()
 			// Draw Level Objects
 			for (const auto& obj : levelObjects)
 			{
-				obj.draw(s3d::Palette::DarkGreen); // Example color
+				obj.draw(s3d::Palette::ForestGreen); // Example color
 			}
 
 			// Draw Player (with animation placeholder)
 			s3d::ColorF playerColor = s3d::Palette::Orange;
 			// Re-evaluate finalIsOnGround based on current, possibly corrected, position and velocity
-			bool finalIsOnGround = (s3d::Math::Approximately(playerVelocity.y, 0.0, 0.1) &&
+			bool finalIsOnGround = (s3d::NearlyEquals(playerVelocity.y, 0.0, 0.1) &&
 									(playerPosition.y >= GROUND_Y - 30.0 - 1.0));
-			if (!finalIsOnGround && s3d::Math::Approximately(playerVelocity.y, 0.0, 0.1)) {
+			if (!finalIsOnGround && s3d::NearlyEquals(playerVelocity.y, 0.0, 0.1)) {
 				s3d::Circle feetCircle{ playerPosition.movedBy(0, 1), 28 };
 				for (const auto& platform : levelObjects) {
 					if (feetCircle.intersects(platform) && playerPosition.y < platform.top() +1) {
