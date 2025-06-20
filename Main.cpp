@@ -145,7 +145,7 @@ void Main()
 			}
 			else if (playerVelocity.y < 0 && !finalIsOnGround) // Moving upwards and not on ground
 			{
-				playerColor = s3d::Palette::LightSkyBlue;
+				playerColor = s3d::Palette::Lightblue;
 			}
 			s3d::Circle(playerPosition, 30).draw(playerColor);
 		} // Transformer2D scope ends
